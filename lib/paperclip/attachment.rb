@@ -3,7 +3,7 @@ module Paperclip
   # when the model saves, deletes when the model is destroyed, and processes
   # the file upon assignment.
   class Attachment
-    
+        
     def self.default_options
       @default_options ||= {
         :url           => "/system/:attachment/:id/:style/:basename.:extension",
@@ -12,7 +12,8 @@ module Paperclip
         :default_url   => "/:attachment/:style/missing.png",
         :default_style => :original,
         :validations   => {},
-        :storage       => :filesystem
+        :storage       => :filesystem,
+        :delay_processing => false
       }
     end
 
@@ -40,6 +41,7 @@ module Paperclip
       @whiny             = options[:whiny_thumbnails]
       @convert_options   = options[:convert_options] || {}
       @processors        = options[:processors] || [:thumbnail]
+      @delay_processing     = options[:delay_processing]
       @options           = options
       @queued_for_delete = []
       @queued_for_write  = {}
@@ -83,10 +85,11 @@ module Paperclip
       instance_write(:content_type,    uploaded_file.content_type.to_s.strip)
       instance_write(:file_size,       uploaded_file.size.to_i)
       instance_write(:updated_at,      Time.now)
+      instance_write(:processed,       false)
 
       @dirty = true
-
-      post_process if valid?
+      
+      post_process if valid? && process_immediately?
  
       # Reset the file size if the original file was reprocessed.
       instance_write(:file_size, @queued_for_write[:original].size.to_i)
@@ -134,6 +137,20 @@ module Paperclip
     # Returns true if there are changes that need to be saved.
     def dirty?
       @dirty
+    end
+    
+    def processed?
+      instance_read(:processed)
+    end
+    
+    # Returns true if processing should be done during assign
+    def process_immediately?
+      !delay_processing?
+    end
+    
+    # Returns true if process should be done at a later time
+    def delay_processing?
+      @delay_processing
     end
 
     # Saves the file, if there are no errors. If there are, it flushes them to
@@ -346,6 +363,7 @@ module Paperclip
       solidify_style_definitions
       return if fire_events(:before)
       post_process_styles
+      instance_write(:processed, true)
       return if fire_events(:after)
     end
 
