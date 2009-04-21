@@ -124,6 +124,17 @@ class StorageTest < Test::Unit::TestCase
       assert ! Dummy.new.avatar.is_a?(Paperclip::Storage::Filesystem)
     end
 
+    context "'to file'" do
+      setup do
+        @dummy = Dummy.new.avatar
+        @dummy.stubs(:s3_bucket).returns(stub(:key => stub(:data => "giraffe")))
+      end
+
+      should "return a File like object" do
+        assert @dummy.to_file.respond_to?(:read)
+      end
+    end
+
     context "when assigned" do
       setup do
         @file = File.new(File.join(File.dirname(__FILE__), 'fixtures', '5k.png'), 'rb')
